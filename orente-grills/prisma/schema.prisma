@@ -1,0 +1,152 @@
+// prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  STAFF
+}
+
+enum FulfillmentType {
+  PICKUP
+  DELIVERY
+  BOTH
+}
+
+enum OrderFulfillment {
+  PICKUP
+  DELIVERY
+}
+
+enum OrderStatus {
+  PENDING
+  PREPARING
+  READY_FOR_PICKUP
+  OUT_FOR_DELIVERY
+  COMPLETED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  AWAITING_PAYMENT
+  PAYMENT_CONFIRMED
+  EXPIRED
+  FAILED
+}
+
+enum ReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  phone        String   @unique
+  passwordHash String
+  role         Role     @default(STAFF)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+}
+
+model Category {
+  id        String    @id @default(cuid())
+  name      String    @unique
+  slug      String    @unique
+  imageUrl  String?
+  products  Product[]
+  createdAt DateTime  @default(now())
+}
+
+model Product {
+  id                String          @id @default(cuid())
+  name              String
+  slug              String          @unique
+  description       String?
+  price             Decimal         @db.Decimal(10, 2)
+  images            String[]
+  categoryId        String
+  category          Category        @relation(fields: [categoryId], references: [id])
+  fulfillment       FulfillmentType @default(BOTH)
+  pickupEtaMinutes  Int?
+  deliveryEtaMinutes Int?
+  isAvailable       Boolean         @default(true)
+  orderItems        OrderItem[]
+  reviews           Review[]
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+}
+
+model DeliveryLocation {
+  id               String   @id @default(cuid())
+  name             String   @unique
+  fee              Decimal  @db.Decimal(10, 2)
+  estimatedMinutes Int
+  isActive         Boolean  @default(true)
+  orders           Order[]
+}
+
+model Order {
+  id                 String            @id @default(cuid())
+  code               String            @unique
+  customerName       String
+  customerPhone      String
+  fulfillment        OrderFulfillment
+  deliveryLocationId String?
+  deliveryLocation   DeliveryLocation? @relation(fields: [deliveryLocationId], references: [id])
+  deliveryFee        Decimal           @default(0) @db.Decimal(10, 2)
+  subtotal           Decimal           @db.Decimal(10, 2)
+  total              Decimal           @db.Decimal(10, 2)
+  status             OrderStatus       @default(PENDING)
+  paymentStatus      PaymentStatus     @default(AWAITING_PAYMENT)
+  estimatedReadyAt   DateTime?
+  items              OrderItem[]
+  reviews            Review[]
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  @@index([customerPhone])
+  @@index([status])
+}
+
+model OrderItem {
+  id        String   @id @default(cuid())
+  orderId   String
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId String?
+  product   Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  name      String
+  price     Decimal  @db.Decimal(10, 2)
+  quantity  Int
+  imageUrl  String?
+}
+
+model Review {
+  id           String       @id @default(cuid())
+  productId    String
+  product      Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+  orderId      String
+  order        Order        @relation(fields: [orderId], references: [id])
+  customerName String
+  rating       Int
+  comment      String
+  status       ReviewStatus @default(PENDING)
+  createdAt    DateTime     @default(now())
+}
+
+model StoreSettings {
+  id               Int      @id @default(1)
+  bankName         String   @default("")
+  accountNumber    String   @default("")
+  accountName      String   @default("")
+  paymentNote      String   @default("")
+  isStoreOpen      Boolean  @default(true)
+  updatedAt        DateTime @updatedAt
+}
